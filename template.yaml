@@ -1,0 +1,103 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  createMediaBucketName:
+    Description: Name of the bucket used to upload videos
+    Type: String
+    Default: serverless-architecture-upload-media-bucket
+  transcodedMediaBucketName:
+    Description: Name of the bucket that transcoded media are exported
+    Type: String
+    Default: serverless-architecture-transcoded-media-bucket
+  codeSnippetsBucketName:
+    Description: Name of the bucket used to upload videos
+    Type: String
+    Default: serverless-architecture-code-snippets
+
+Resources:
+  createMediaLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: submits a job on elastic transcoder
+      Handler: main
+      Runtime: go1.x
+      MemorySize: 128
+      PackageType: Zip
+      Role: arn:aws:iam::059477470745:role/serverless-architecture-role
+      Code:
+        S3Bucket: !Ref codeSnippetsBucketName
+        S3Key: createMedia.zip
+      Timeout: 5
+
+  createMediaLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: createMediaLambda
+    Properties:
+      LogGroupName: !Join ['/', ['/aws/lambda', !Ref createMediaLambda]]
+      RetentionInDays: 7
+
+  createMediaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref createMediaLambda
+      Action: 'lambda:InvokeFunction'
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+      SourceArn: !Sub "arn:aws:s3:::${createMediaBucketName}"
+
+  createMediaBucket:
+    Type: AWS::S3::Bucket
+    Properties: 
+      BucketName: !Ref createMediaBucketName
+      NotificationConfiguration:
+        LambdaConfigurations:
+        - Event: 's3:ObjectCreated:*'
+          Function: !GetAtt createMediaLambda.Arn
+          Filter:
+            S3Key:
+              Rules:
+                - Name: suffix
+                  Value: .mp4
+
+  changeMediaPermissionsLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: changes the permissions of a transcoded media
+      Handler: main
+      Runtime: go1.x
+      MemorySize: 128
+      PackageType: Zip
+      Role: arn:aws:iam::059477470745:role/serverless-architecture-role
+      Code:
+        S3Bucket: !Ref codeSnippetsBucketName
+        S3Key: changeMediaPermissions.zip
+      Timeout: 5
+
+  changeMediaPermissionsLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: changeMediaPermissionsLambda
+    Properties:
+      LogGroupName: !Join ['/', ['/aws/lambda', !Ref changeMediaPermissionsLambda]]
+      RetentionInDays: 7
+
+  changeMediaPermissionsInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref changeMediaPermissionsLambda
+      Action: 'lambda:InvokeFunction'
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref 'AWS::AccountId'
+      SourceArn: !Sub "arn:aws:s3:::${transcodedMediaBucketName}"
+
+  transcodedMediaBucket:
+    Type: AWS::S3::Bucket
+    Properties: 
+      BucketName: !Ref transcodedMediaBucketName
+      NotificationConfiguration:
+        LambdaConfigurations:
+        - Event: 's3:ObjectCreated:*'
+          Function: !GetAtt changeMediaPermissionsLambda.Arn
+          Filter:
+            S3Key:
+              Rules:
+                - Name: suffix
+                  Value: .mp4
