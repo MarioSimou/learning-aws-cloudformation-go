@@ -88,16 +88,46 @@ Resources:
       SourceAccount: !Ref 'AWS::AccountId'
       SourceArn: !Sub "arn:aws:s3:::${transcodedMediaBucketName}"
 
+  transcodedMediaTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Statement:
+          - Sid: AllowServices
+            Effect: Allow
+            Principal:
+              AWS: "*"
+            Action:
+              - "SNS:Publish"
+              - "SNS:Receive"
+            Resource:
+              - !Ref transcodedMediaTopic
+      Topics:
+        - !Ref transcodedMediaTopic
+
+  transcodedMediaTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: transcodedMedia
+      DisplayName: transcodedMedia
+      FifoTopic: false
+      Subscription:
+        - Endpoint: marios.simouu@gmail.com
+          Protocol: email
+        - Endpoint: !GetAtt changeMediaPermissionsLambda.Arn
+          Protocol: lambda
+
   transcodedMediaBucket:
     Type: AWS::S3::Bucket
+    DependsOn: transcodedMediaTopicPolicy
     Properties: 
       BucketName: !Ref transcodedMediaBucketName
       NotificationConfiguration:
-        LambdaConfigurations:
-        - Event: 's3:ObjectCreated:*'
-          Function: !GetAtt changeMediaPermissionsLambda.Arn
-          Filter:
-            S3Key:
-              Rules:
-                - Name: suffix
-                  Value: .mp4
+        TopicConfigurations:
+          - Event: 's3:ObjectCreated:*'
+            Topic: !Ref transcodedMediaTopic
+            Filter:
+              S3Key:
+                Rules:
+                  - Name: suffix
+                    Value: .mp4

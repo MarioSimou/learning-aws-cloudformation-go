@@ -16,6 +16,7 @@ test:
 	@rm -rf main &> /dev/null
 
 deploy:
+	@sam validate -t template.yaml
 	@make build
 	@aws s3 cp ./artifacts s3://${ARTIFACTS_BUCKET}/ --recursive --exclude ".gitkeep" --include "*.zip"
 	@sam deploy -t template.yaml --stack-name serverless-architecture --region eu-west-1

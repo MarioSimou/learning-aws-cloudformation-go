@@ -1,4 +1,4 @@
-module github.com/MarioSimou/serverless-architecture-book
+module github.com/MarioSimou/learning-aws-cloudformation-go
 
 go 1.15
 
